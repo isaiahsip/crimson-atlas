@@ -1,0 +1,14 @@
+# --- private: never commit ---
+# your my.harvard session cookie (it works like your login)
+.harvard-cookie
+*.cookie
+cookie*.txt
+# raw pages fetched while signed in
+debug/
+
+# --- local junk ---
+__pycache__/
+*.pyc
+*.tmp
+.DS_Store
+*.png

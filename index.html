@@ -1,0 +1,106 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>Crimson Atlas</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com" />
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet" />
+  <link rel="stylesheet" href="styles.css" />
+</head>
+<body>
+  <header class="topbar">
+    <div class="brand"><span class="logo">⬢</span> Crimson Atlas</div>
+    <select id="term" aria-label="Term"></select>
+    <div class="spacer"></div>
+    <div id="stats" class="stats"></div>
+    <button id="theme" class="ghost-btn" title="Toggle dark mode" aria-label="Toggle dark mode">◐</button>
+  </header>
+
+  <main class="layout">
+    <!-- LEFT: search + results -->
+    <section class="left">
+      <div class="search-box">
+        <input id="q" type="search" autocomplete="off" spellcheck="false"
+               placeholder="Search courses — try “cs 50”, “ec 10”, “machine learning”, or an instructor" />
+      </div>
+
+      <div class="filters">
+        <div class="row">
+          <label>Sort
+            <select id="sort">
+              <option value="relevance">Relevance</option>
+              <option value="start">Start time (earliest)</option>
+              <option value="start-desc">Start time (latest)</option>
+              <option value="end">End time</option>
+              <option value="code">Course code</option>
+              <option value="title">Title</option>
+            </select>
+          </label>
+          <label>Starts after <input id="after" type="time" step="900" /></label>
+          <label>Ends by <input id="before" type="time" step="900" /></label>
+        </div>
+        <div class="row">
+          <div class="days" id="days" role="group" aria-label="Only meets on these days">
+            <button data-d="Mo">M</button><button data-d="Tu">T</button><button data-d="We">W</button><button data-d="Th">Th</button><button data-d="Fr">F</button>
+          </div>
+          <label class="check"><input id="hideTba" type="checkbox" checked /> Has a set time</label>
+          <label class="check"><input id="fits" type="checkbox" /> Fits my schedule</label>
+          <label class="check"><input id="previewAll" type="checkbox" checked /> Preview top results</label>
+        </div>
+        <div class="row">
+          <select id="dept" aria-label="Department"><option value="">All departments</option></select>
+          <select id="gened" aria-label="Gen Ed / Divisional"><option value="">Any Gen Ed / divisional</option></select>
+        </div>
+      </div>
+
+      <div id="resultMeta" class="result-meta"></div>
+      <ol id="results" class="results"></ol>
+    </section>
+
+    <!-- RIGHT: calendar + schedule -->
+    <section class="right">
+      <div class="cal-wrap">
+        <div id="calendar" class="calendar"></div>
+      </div>
+      <div class="schedule">
+        <div class="schedule-head">
+          <h2>My schedule</h2>
+          <div id="schedSummary" class="muted"></div>
+          <div class="spacer"></div>
+          <button id="exportIcs" class="ghost-btn">Export .ics</button>
+          <button id="clearSched" class="ghost-btn">Clear</button>
+        </div>
+        <ul id="schedList" class="sched-list"></ul>
+      </div>
+    </section>
+  </main>
+
+  <footer class="site-footer">
+    Inspired by <a href="https://atlas.ai.umich.edu" target="_blank" rel="noopener">Atlas</a>, which is copyrighted and the property of the University of Michigan. Crimson Atlas is not affiliated with or endorsed by the University of Michigan.
+    Thanks to Amy for the idea ♥
+  </footer>
+
+  <!-- detail drawer -->
+  <aside id="drawer" class="drawer" aria-hidden="true">
+    <button class="drawer-close ghost-btn" aria-label="Close">✕</button>
+    <div id="drawerBody"></div>
+  </aside>
+
+  <template id="sectionFormTpl">
+    <form class="section-form">
+      <select name="component" aria-label="Section type"></select>
+      <div class="days small">
+        <button type="button" data-d="Mo">M</button><button type="button" data-d="Tu">T</button><button type="button" data-d="We">W</button><button type="button" data-d="Th">Th</button><button type="button" data-d="Fr">F</button>
+      </div>
+      <input name="start" type="time" step="300" required aria-label="Start" />
+      <span>–</span>
+      <input name="end" type="time" step="300" required aria-label="End" />
+      <input name="label" type="text" placeholder="Section" value="Section" aria-label="Label" />
+      <button type="submit" class="btn">Add</button>
+    </form>
+  </template>
+
+  <script src="app.js"></script>
+</body>
+</html>
