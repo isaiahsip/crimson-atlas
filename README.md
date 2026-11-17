@@ -1,5 +1,7 @@
 # Crimson Atlas
 
+I did not write a single line of this code, it was all Claude.
+
 An Atlas-style course planner for Harvard. Search courses, see their time blocks pop up on a weekly calendar as you type, and build a schedule with lectures, discussion sections, and labs.
 
 Course data comes from my.harvard's course search and is stored as static JSON in `data/`, so the site is plain HTML/JS with no backend or build step.
