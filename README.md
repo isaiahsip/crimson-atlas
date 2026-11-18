@@ -18,6 +18,8 @@ Inspired by [Atlas](https://atlas.ai.umich.edu), which is copyrighted and the pr
 - Hand-entered section options for sections my.harvard hasn't posted yet
 - Course links like on my.harvard: Syllabus, Canvas Site, Q Report, The Coop
 - `.ics` export for Google Calendar / Apple Calendar
+- Multiple draft schedules (new, duplicate, rename, delete, switch) and per-course custom colors
+- Export a draft to a `.json` file or copy a share link; importing asks whether to add a new draft or replace the current one
 
 ## Run locally
 
@@ -76,7 +78,7 @@ Browser smoke tests use Playwright (`pip install playwright && playwright instal
 
 ```sh
 python3 -m http.server 8765 &
-python3 tests/ui_test.py && python3 tests/ui_test_multi.py out.png && python3 tests/ui_test_multisec.py out.png
+for t in tests/ui_test*.py; do python3 "$t" out.png; done
 ```
 
 ## Layout

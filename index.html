@@ -60,12 +60,25 @@
 
     <!-- RIGHT: calendar + schedule -->
     <section class="right">
+      <div class="drafts-bar">
+        <label for="draftSel" class="muted">Draft</label>
+        <select id="draftSel" aria-label="Draft schedule"></select>
+        <button id="draftNew" class="ghost-btn" title="New empty draft">＋ New</button>
+        <button id="draftDup" class="ghost-btn" title="Duplicate this draft">Duplicate</button>
+        <button id="draftRename" class="ghost-btn" title="Rename this draft">Rename</button>
+        <button id="draftDelete" class="ghost-btn" title="Delete this draft">Delete</button>
+        <div class="spacer"></div>
+        <button id="importBtn" class="ghost-btn" title="Import a schedule file">Import</button>
+        <button id="exportBtn" class="ghost-btn" title="Save this draft as a file">Export</button>
+        <button id="shareBtn" class="ghost-btn" title="Copy a link that opens this draft">Copy link</button>
+        <input id="importFile" type="file" accept=".json,application/json" hidden />
+      </div>
       <div class="cal-wrap">
         <div id="calendar" class="calendar"></div>
       </div>
       <div class="schedule">
         <div class="schedule-head">
-          <h2>My schedule</h2>
+          <h2 id="schedTitle">My schedule</h2>
           <div id="schedSummary" class="muted"></div>
           <div class="spacer"></div>
           <button id="exportIcs" class="ghost-btn">Export .ics</button>
@@ -101,6 +114,17 @@
     </form>
   </template>
 
+  <div id="toast" class="toast" role="status" aria-live="polite"></div>
+
+  <dialog id="importDialog" class="modal" aria-labelledby="importTitle">
+    <h3 id="importTitle">Import schedule</h3>
+    <p id="importMsg"></p>
+    <div class="modal-actions">
+      <button class="btn" data-choice="new">New draft</button>
+      <button class="ghost-btn" data-choice="replace" id="importReplace">Replace current draft</button>
+      <button class="ghost-btn" data-choice="cancel">Cancel</button>
+    </div>
+  </dialog>
   <script src="app.js"></script>
 </body>
 </html>

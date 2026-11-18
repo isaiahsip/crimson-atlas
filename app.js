@@ -44,17 +44,22 @@
     previewAll: saved.previewAll ?? true,
     dept: "",
     gened: "",
-    // schedule: key -> { color, picks: {component: optionId}, options: [{id,label,days,start,end}] }
-    schedule: saved.schedule || {},
+    // drafts: [{ id, name, schedule }], where schedule is key -> { color, picks: {component: optionId}, options: [...] }
+    // (schedules saved before drafts existed become "Schedule 1")
+    drafts: saved.drafts?.length ? saved.drafts : [{ id: "d-" + Math.random().toString(36).slice(2, 9), name: "Schedule 1", schedule: saved.schedule || {} }],
+    activeDraft: saved.activeDraft,
+    schedule: null, // always the active draft's schedule object
     theme: saved.theme || "",
   };
+  if (!state.drafts.some((d) => d.id === state.activeDraft)) state.activeDraft = state.drafts[0].id;
+  state.schedule = state.drafts.find((d) => d.id === state.activeDraft).schedule;
 
   function load() {
     try { return JSON.parse(localStorage.getItem(STORE)) || {}; } catch { return {}; }
   }
   function persist() {
     try {
-      localStorage.setItem(STORE, JSON.stringify({ ...state, days: [...state.days], dept: undefined, gened: undefined }));
+      localStorage.setItem(STORE, JSON.stringify({ ...state, days: [...state.days], dept: undefined, gened: undefined, schedule: undefined }));
     } catch { /* storage unavailable */ }
   }
 
@@ -74,6 +79,15 @@
   const firstStart = (c) => { const ts = (c.meetings || []).filter(timed).map((m) => m.start); return ts.length ? Math.min(...ts) : null; };
   const lastEnd = (c) => { const ts = (c.meetings || []).filter(timed).map((m) => m.end); return ts.length ? Math.max(...ts) : null; };
   const uid = () => Math.random().toString(36).slice(2, 9);
+  /** Readable text color (dark or white) on top of a course color, so light custom colors stay legible. */
+  function textOn(hex) {
+    const m = /^#?([0-9a-f]{6})$/i.exec(hex || "");
+    if (!m) return "#fff";
+    const n = parseInt(m[1], 16);
+    const lin = (v) => { v /= 255; return v <= 0.03928 ? v / 12.92 : ((v + 0.055) / 1.055) ** 2.4; };
+    const L = 0.2126 * lin(n >> 16) + 0.7152 * lin((n >> 8) & 255) + 0.0722 * lin(n & 255);
+    return L > 0.4 ? "#1c1b1a" : "#fff";
+  }
 
   /** Every section option for a course: scraped + manually entered, each tagged with a component. */
   function sectionOptions(c, entry) {
@@ -352,7 +366,7 @@
         const top = (e.m.start - lo) * PX_PER_MIN, ht = Math.max(16, (e.m.end - e.m.start) * PX_PER_MIN - 2);
         const w = 100 / e.lanes, left = e.lane * w;
         const cls = ["ev", e.kind, e.conflict ? "conflict" : ""].join(" ");
-        const style = `top:${top}px;height:${ht}px;left:calc(${left}% + 2px);width:calc(${w}% - 4px);--c:${e.color};background:${e.color}`;
+        const style = `top:${top}px;height:${ht}px;left:calc(${left}% + 2px);width:calc(${w}% - 4px);--c:${e.color};--on:${textOn(e.color)};background:${e.color}`;
         h += `<div class="${cls}" style="${style}" data-k="${esc(e.k)}" ${e.optId ? `data-opt="${esc(e.optId)}"` : ""} title="${esc(`${e.label} — ${e.c.title}\n${e.sub ? e.sub + " · " : ""}${fmt(e.m.start)}–${fmt(e.m.end)}${e.conflict ? "\n⚠ conflict" : ""}`)}">
           <b>${esc(e.label)}</b>${ht > 28 ? `<span>${esc(e.sub)}</span>` : ""}${ht > 44 ? `<span>${fmt(e.m.start)}–${fmt(e.m.end)}</span>` : ""}
         </div>`;
@@ -386,6 +400,7 @@
 
   // ------------------------------------------------------------ schedule panel
   function renderSchedule() {
+    renderDrafts();
     const list = $("#schedList");
     const entries = Object.entries(state.schedule).map(([k, e]) => [k, e, BY_KEY.get(k)]).filter(([, , c]) => c && (!state.term || c.term === state.term));
     let credits = 0, mins = 0;
@@ -423,8 +438,8 @@
         const shownOpts = opts.filter((o) => o.meetings.some(timed) || o.source === "manual" || o.id === picks[comp]);
         return `<div class="line">${esc(comp)}: ${status}</div>${shownOpts.length ? `<div class="section-picker">${shownOpts.map(optBtn).join("")}</div>` : ""}`;
       }).join("");
-      return `<li class="sched-item" data-k="${esc(k)}" style="--c:${e.color}">
-        <div class="top"><b>${esc(c.code)}</b><span>${esc(c.title)}</span><span class="spacer"></span>
+      return `<li class="sched-item" data-k="${esc(k)}" style="--c:${e.color};--on:${textOn(e.color)}">
+        <div class="top"><label class="color-pick" title="Change color" style="background:${e.color}"><input type="color" data-color value="${esc(e.color)}" aria-label="Color for ${esc(c.code)}" /></label><b>${esc(c.code)}</b><span>${esc(c.title)}</span><span class="spacer"></span>
           <button class="link-btn" data-addopt>${openFormKey === k ? "Done adding" : "+ Add section option"}</button>
           <button class="link-btn" data-info>Details</button>
           <button class="x-btn" data-remove title="Remove course" aria-label="Remove ${esc(c.code)}">✕</button></div>
@@ -592,6 +607,199 @@
     a.click();
   }
 
+  // ------------------------------------------------------------ drafts, export / import
+  const activeDraft = () => state.drafts.find((d) => d.id === state.activeDraft);
+  const draftCount = (d) => Object.keys(d.schedule).length;
+
+  function toast(msg, ms = 3500) {
+    const t = $("#toast");
+    t.textContent = msg;
+    t.classList.add("show");
+    clearTimeout(toast._t);
+    toast._t = setTimeout(() => t.classList.remove("show"), ms);
+  }
+
+  function uniqueName(base) {
+    const names = new Set(state.drafts.map((d) => d.name));
+    if (!names.has(base)) return base;
+    for (let i = 2; ; i++) if (!names.has(`${base} (${i})`)) return `${base} (${i})`;
+  }
+  const nextDefaultName = () => uniqueName(`Schedule ${state.drafts.length + 1}`);
+
+  function renderDrafts() {
+    $("#draftSel").innerHTML = state.drafts
+      .map((d) => `<option value="${esc(d.id)}">${esc(d.name)} (${draftCount(d)} course${draftCount(d) === 1 ? "" : "s"})</option>`).join("");
+    $("#draftSel").value = state.activeDraft;
+    $("#schedTitle").textContent = activeDraft().name;
+  }
+
+  function switchDraft(id) {
+    const d = state.drafts.find((x) => x.id === id);
+    if (!d) return;
+    state.activeDraft = id;
+    state.schedule = d.schedule;
+    openFormKey = null;
+    persist();
+    renderResults();
+    renderCalendar();
+  }
+
+  function addDraft(name, schedule = {}) {
+    const d = { id: "d-" + uid(), name, schedule };
+    state.drafts.push(d);
+    switchDraft(d.id);
+    return d;
+  }
+
+  /** Portable form of a draft. Keys plus code/term so it still resolves if the data is re-scraped. */
+  function serializeDraft(d) {
+    return {
+      app: "crimson-atlas",
+      version: 1,
+      name: d.name,
+      exported: new Date().toISOString(),
+      courses: Object.entries(d.schedule).map(([key, e]) => {
+        const c = BY_KEY.get(key);
+        return { key, code: c?.code, term: c?.term, color: e.color, picks: e.picks || {}, options: e.options || [] };
+      }),
+    };
+  }
+
+  /** Ask whether an import goes into a new draft or replaces the one being viewed. Resolves "new" | "replace" | "cancel". */
+  function askImportTarget(name, count, missing) {
+    const dlg = $("#importDialog");
+    const cur = activeDraft();
+    $("#importMsg").textContent =
+      `"${name}" has ${count} course${count === 1 ? "" : "s"}${missing ? ` (${missing} couldn't be found and will be skipped)` : ""}. ` +
+      `Add it as a new draft, or replace "${cur.name}"${draftCount(cur) ? ` (${draftCount(cur)} course${draftCount(cur) === 1 ? "" : "s"})` : " (empty)"}?`;
+    $("#importReplace").textContent = `Replace "${cur.name}"`;
+    return new Promise((resolve) => {
+      const onClick = (e) => {
+        const b = e.target.closest("[data-choice]");
+        if (!b) return;
+        finish(b.dataset.choice);
+      };
+      const onCancel = (e) => { e.preventDefault(); finish("cancel"); }; // Esc key
+      const finish = (choice) => {
+        dlg.removeEventListener("click", onClick);
+        dlg.removeEventListener("cancel", onCancel);
+        dlg.close();
+        resolve(choice);
+      };
+      dlg.addEventListener("click", onClick);
+      dlg.addEventListener("cancel", onCancel);
+      dlg.showModal();
+    });
+  }
+
+  async function importPayload(data, source) {
+    if (!data || data.app !== "crimson-atlas" || !Array.isArray(data.courses)) {
+      alert(`That ${source} isn't a Crimson Atlas schedule.`);
+      return;
+    }
+    const schedule = {}, missing = [];
+    for (const x of data.courses) {
+      let key = BY_KEY.has(x.key) ? x.key : null;
+      if (!key && x.code) { // course data was re-scraped: match on term + code instead
+        const c = ALL.find((y) => y.code === x.code && (!x.term || y.term === x.term));
+        if (c) key = keyOf(c);
+      }
+      if (!key) { missing.push(x.code || x.key); continue; }
+      schedule[key] = {
+        color: /^#[0-9a-f]{6}$/i.test(x.color || "") ? x.color : PALETTE[Object.keys(schedule).length % PALETTE.length],
+        picks: x.picks && typeof x.picks === "object" ? x.picks : {},
+        options: Array.isArray(x.options) ? x.options : [],
+      };
+    }
+    const name = String(data.name || "Imported schedule").slice(0, 60);
+    const n0 = Object.keys(schedule).length;
+    if (!n0) {
+      alert(`None of the courses in that ${source} exist in the current course data.`);
+      return;
+    }
+    const choice = await askImportTarget(name, n0, missing.length);
+    if (choice === "cancel") return;
+    let target;
+    if (choice === "replace") { // keep the draft's name, swap its contents
+      target = activeDraft();
+      target.schedule = schedule;
+      switchDraft(target.id);
+    } else {
+      target = addDraft(uniqueName(name), schedule);
+    }
+    // jump to the term the imported courses are in
+    const terms = Object.keys(schedule).map((k) => BY_KEY.get(k).term);
+    if (terms.length && !terms.includes(state.term)) {
+      state.term = terms[0];
+      $("#term").value = state.term;
+      fillFacetSelects();
+      persist();
+      runSearch();
+    }
+    const n = Object.keys(schedule).length;
+    toast(`Imported ${n} course${n === 1 ? "" : "s"} into "${target.name}".`);
+    if (missing.length) toast(`Imported ${n} course${n === 1 ? "" : "s"} into "${target.name}". Skipped (not in current data): ${missing.join(", ")}`, 7000);
+  }
+
+  // URL-safe base64 for share links (handles non-ASCII names)
+  const toB64 = (str) => btoa(String.fromCharCode(...new TextEncoder().encode(str))).replace(/\+/g, "-").replace(/\//g, "_").replace(/=+$/, "");
+  const fromB64 = (b) => new TextDecoder().decode(Uint8Array.from(atob(b.replace(/-/g, "+").replace(/_/g, "/")), (ch) => ch.charCodeAt(0)));
+
+  function importFromHash() {
+    const m = location.hash.match(/^#import=([\w-]+)/);
+    if (!m) return;
+    history.replaceState(null, "", location.pathname + location.search);
+    let data;
+    try { data = JSON.parse(fromB64(m[1])); } catch { alert("That share link is broken or incomplete."); return; }
+    importPayload(data, "link");
+  }
+
+  function wireDrafts() {
+    $("#draftSel").addEventListener("change", (e) => switchDraft(e.target.value));
+    $("#draftNew").addEventListener("click", () => addDraft(nextDefaultName()));
+    $("#draftDup").addEventListener("click", () => {
+      const d = activeDraft();
+      addDraft(uniqueName(`${d.name} copy`), JSON.parse(JSON.stringify(d.schedule)));
+    });
+    $("#draftRename").addEventListener("click", () => {
+      const d = activeDraft();
+      const name = (prompt("Rename draft:", d.name) || "").trim().slice(0, 60);
+      if (name && name !== d.name) { d.name = uniqueName(name); persist(); renderDrafts(); }
+    });
+    $("#draftDelete").addEventListener("click", () => {
+      const d = activeDraft();
+      if (draftCount(d) && !confirm(`Delete "${d.name}" and its ${draftCount(d)} course(s)? This can't be undone. (Export it first if you might want it back.)`)) return;
+      state.drafts = state.drafts.filter((x) => x !== d);
+      if (!state.drafts.length) state.drafts.push({ id: "d-" + uid(), name: "Schedule 1", schedule: {} });
+      switchDraft(state.drafts[0].id);
+    });
+    $("#exportBtn").addEventListener("click", () => {
+      const d = activeDraft();
+      const a = document.createElement("a");
+      a.href = URL.createObjectURL(new Blob([JSON.stringify(serializeDraft(d), null, 2)], { type: "application/json" }));
+      a.download = `${d.name.replace(/[^\w\- ]+/g, "").trim() || "schedule"}.crimson-atlas.json`;
+      a.click();
+      toast(`Exported "${d.name}".`);
+    });
+    $("#importBtn").addEventListener("click", () => $("#importFile").click());
+    $("#importFile").addEventListener("change", async (e) => {
+      const f = e.target.files[0];
+      e.target.value = "";
+      if (!f) return;
+      try { await importPayload(JSON.parse(await f.text()), "file"); }
+      catch { alert("Couldn't read that file. Is it a Crimson Atlas export?"); }
+    });
+    $("#shareBtn").addEventListener("click", async () => {
+      const d = activeDraft();
+      if (!draftCount(d)) return toast("This draft is empty. Add some courses first.");
+      const p = serializeDraft(d);
+      delete p.exported;
+      const url = `${location.origin}${location.pathname}#import=${toB64(JSON.stringify(p))}`;
+      try { await navigator.clipboard.writeText(url); toast("Link copied. Opening it adds this schedule as a draft."); }
+      catch { prompt("Copy this link:", url); }
+    });
+  }
+
   let searchTimer;
   const runSearchSoon = () => { clearTimeout(searchTimer); searchTimer = setTimeout(runSearch, 60); };
 
@@ -654,6 +862,24 @@
       }
     });
 
+    // color picker: update the calendar live while dragging (without rebuilding the open picker), save on close
+    $("#schedList").addEventListener("input", (e) => {
+      const inp = e.target.closest("[data-color]");
+      if (!inp) return;
+      const li = inp.closest(".sched-item");
+      state.schedule[li.dataset.k].color = inp.value;
+      li.style.setProperty("--c", inp.value);
+      li.style.setProperty("--on", textOn(inp.value));
+      inp.parentElement.style.background = inp.value;
+      renderCalendar({ skipSchedule: true });
+    });
+    $("#schedList").addEventListener("change", (e) => {
+      if (!e.target.closest("[data-color]")) return;
+      persist();
+      renderResults();
+      renderCalendar();
+    });
+
     $("#clearSched").addEventListener("click", () => {
       if (confirm("Remove every course (and your section options) from this term's schedule?")) {
         for (const k of Object.keys(state.schedule)) if (!state.term || BY_KEY.get(k)?.term === state.term) delete state.schedule[k];
@@ -661,6 +887,7 @@
       }
     });
     $("#exportIcs").addEventListener("click", exportIcs);
+    wireDrafts();
     $(".drawer-close").addEventListener("click", closeDrawer);
     $("#drawer").addEventListener("click", (e) => {
       const t = e.target.closest("[data-toggle]");
@@ -734,6 +961,7 @@
     $("#stats").textContent = `${ALL.length.toLocaleString()} courses${index.updated ? ` · updated ${index.updated}` : ""}`;
     fillFacetSelects();
     runSearch();
+    importFromHash();
   }
 
   init();

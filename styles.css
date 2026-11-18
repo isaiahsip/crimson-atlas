@@ -121,14 +121,14 @@ select, input[type="time"], input[type="text"] {
 
 .ev {
   position: absolute; border-radius: 6px; padding: 3px 5px; font-size: 11px; line-height: 1.2; overflow: hidden;
-  color: #fff; cursor: pointer; z-index: 2; border: 1px solid rgba(0,0,0,.08);
+  color: var(--on, #fff); cursor: pointer; z-index: 2; border: 1px solid rgba(0,0,0,.08);
   transition: opacity .12s, transform .12s;
 }
 .ev b { display: block; font-size: 11.5px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
 .ev span { display: block; opacity: .9; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
 .ev.section { background-image: repeating-linear-gradient(135deg, rgba(255,255,255,.18) 0 6px, transparent 6px 12px); }
 .ev.option { background: transparent !important; border: 1.5px dashed var(--c); color: var(--text); opacity: .85; }
-.ev.option:hover { background: var(--c) !important; color: #fff; opacity: 1; }
+.ev.option:hover { background: var(--c) !important; color: var(--on, #fff); opacity: 1; }
 .ev.ghost { opacity: .32; z-index: 1; pointer-events: none; }
 .ev.preview { z-index: 5; box-shadow: 0 0 0 2px var(--panel), 0 6px 20px rgba(0,0,0,.25); opacity: .95; animation: pop .15s ease-out; pointer-events: none; }
 .ev.conflict { outline: 2px solid var(--conflict); outline-offset: -2px; }
@@ -152,7 +152,7 @@ select, input[type="time"], input[type="text"] {
 .section-form input[type="text"] { width: 110px; }
 .section-picker { display: flex; flex-wrap: wrap; gap: 4px; margin-top: 4px; }
 .section-picker button { font-size: 11px; border: 1px solid var(--border); background: var(--panel-2); border-radius: 6px; padding: 2px 6px; cursor: pointer; }
-.section-picker button.on { background: var(--c); color: #fff; border-color: var(--c); }
+.section-picker button.on { background: var(--c); color: var(--on, #fff); border-color: var(--c); }
 .empty { color: var(--muted); font-size: 13px; padding: 10px 0; }
 
 /* drawer */
@@ -191,3 +191,32 @@ select, input[type="time"], input[type="text"] {
 .quick-links { gap: 12px !important; }
 .quick-links a, .drawer dd a { color: var(--crimson); font-weight: 600; text-decoration: none; font-size: 12px; }
 .quick-links a:hover, .drawer dd a:hover, .drawer .actions a:hover { text-decoration: underline; }
+
+.color-pick {
+  position: relative; width: 16px; height: 16px; border-radius: 50%; flex: none; align-self: center;
+  cursor: pointer; box-shadow: 0 0 0 1px var(--border), 0 0 0 3px var(--panel) inset;
+}
+.color-pick:hover { box-shadow: 0 0 0 2px var(--text), 0 0 0 3px var(--panel) inset; }
+.color-pick input { position: absolute; inset: 0; opacity: 0; width: 100%; height: 100%; cursor: pointer; border: 0; padding: 0; }
+
+/* drafts bar */
+.drafts-bar { display: flex; flex-wrap: wrap; align-items: center; gap: 6px; padding: 12px 16px 0; }
+.drafts-bar label { font-size: 12px; }
+.drafts-bar select { min-width: 170px; font-weight: 600; }
+.drafts-bar .ghost-btn { font-size: 12.5px; padding: 4px 9px; }
+.toast {
+  position: fixed; left: 50%; bottom: 44px; transform: translate(-50%, 20px); opacity: 0; pointer-events: none;
+  background: var(--text); color: var(--bg); padding: 8px 14px; border-radius: 8px; font-size: 13px; z-index: 60;
+  transition: opacity .15s, transform .15s; box-shadow: var(--shadow);
+}
+.toast.show { opacity: 1; transform: translate(-50%, 0); }
+
+/* import dialog */
+.modal {
+  border: 1px solid var(--border); border-radius: 12px; padding: 20px 22px; max-width: min(460px, calc(100% - 32px));
+  background: var(--panel); color: var(--text); box-shadow: 0 20px 60px rgba(0,0,0,.3);
+}
+.modal::backdrop { background: rgba(0,0,0,.35); }
+.modal h3 { margin: 0 0 6px; font-size: 16px; }
+.modal p { margin: 0 0 16px; color: var(--muted); font-size: 13.5px; }
+.modal-actions { display: flex; flex-wrap: wrap; gap: 8px; justify-content: flex-end; }
