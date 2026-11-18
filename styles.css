@@ -74,6 +74,28 @@ select, input[type="time"], input[type="text"] {
 .filters select { font-size: 13px; max-width: 100%; }
 #dept, #gened { flex: 1; min-width: 140px; }
 
+/* multi-select dropdowns */
+.ms { position: relative; }
+.ms[hidden] { display: none; }
+.ms-btn {
+  width: 100%; display: flex; align-items: center; justify-content: space-between; gap: 8px; font-size: 13px;
+  background: var(--panel); border: 1px solid var(--border); border-radius: 8px; padding: 5px 8px; cursor: pointer; text-align: left;
+}
+.ms-btn.active { border-color: var(--crimson); background: var(--crimson-soft); font-weight: 600; }
+.ms-label { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.ms-caret { color: var(--muted); font-size: 11px; }
+.ms-pop {
+  position: absolute; top: calc(100% + 4px); left: 0; z-index: 30; min-width: 100%; width: max-content; max-width: 320px;
+  background: var(--panel); border: 1px solid var(--border); border-radius: 10px; box-shadow: 0 10px 30px rgba(0,0,0,.15); padding: 6px;
+}
+.ms-search { width: 100%; padding: 6px 8px; margin-bottom: 4px; border: 1px solid var(--border); border-radius: 6px; background: var(--panel-2); font-size: 13px; }
+.ms-list { max-height: 280px; overflow: auto; display: flex; flex-direction: column; }
+.ms-opt { display: flex !important; align-items: center; gap: 8px; padding: 5px 8px; border-radius: 6px; cursor: pointer; font-size: 13px !important; color: var(--text) !important; }
+.ms-opt[hidden] { display: none !important; }
+.ms-opt:hover { background: var(--panel-2); }
+.ms-group { font-size: 10.5px; font-weight: 700; letter-spacing: .05em; text-transform: uppercase; color: var(--muted); padding: 8px 8px 2px; }
+.ms-foot { display: flex; justify-content: space-between; padding: 6px 8px 2px; border-top: 1px solid var(--border); margin-top: 4px; }
+
 .days { display: inline-flex; border: 1px solid var(--border); border-radius: 8px; overflow: hidden; }
 .days button { background: transparent; border: 0; padding: 4px 9px; cursor: pointer; font-size: 12px; font-weight: 600; color: var(--muted); }
 .days button + button { border-left: 1px solid var(--border); }
@@ -84,8 +106,9 @@ select, input[type="time"], input[type="text"] {
 .results { list-style: none; margin: 0; padding: 0 8px 16px; overflow: auto; flex: 1; }
 .result {
   padding: 10px 10px 10px 12px; border-radius: 10px; cursor: pointer; display: grid;
-  grid-template-columns: 1fr auto; gap: 2px 10px; border: 1px solid transparent; position: relative;
+  grid-template-columns: 1fr auto auto; gap: 2px 10px; border: 1px solid transparent; position: relative;
 }
+.result .code { grid-column: 1; }
 .result:hover, .result.hover { background: var(--panel-2); border-color: var(--border); }
 .result.added { background: var(--crimson-soft); }
 .result .code { font-weight: 700; font-size: 13px; }
@@ -93,7 +116,7 @@ select, input[type="time"], input[type="text"] {
 .result .meta { grid-column: 1; font-size: 12px; color: var(--muted); display: flex; flex-wrap: wrap; gap: 4px 10px; }
 .result .when { font-variant-numeric: tabular-nums; }
 .result .add {
-  grid-column: 2; grid-row: 1 / span 3; align-self: center; width: 30px; height: 30px; border-radius: 50%;
+  grid-column: 3; grid-row: 1 / span 3; align-self: center; width: 30px; height: 30px; border-radius: 50%;
   border: 1px solid var(--border); background: var(--panel); cursor: pointer; font-size: 17px; line-height: 1;
 }
 .result .add:hover { border-color: var(--crimson); color: var(--crimson); }
@@ -226,3 +249,39 @@ select, input[type="time"], input[type="text"] {
 .modal h3 { margin: 0 0 6px; font-size: 16px; }
 .modal p { margin: 0 0 16px; color: var(--muted); font-size: 13.5px; }
 .modal-actions { display: flex; flex-wrap: wrap; gap: 8px; justify-content: flex-end; }
+
+/* Q Report chips */
+.tag.q { background: var(--grid); color: var(--text); font-weight: 600; font-variant-numeric: tabular-nums; }
+.tag.q.good { background: #dcf3e6; color: #116b3d; }
+.tag.q.low { background: #fde7e5; color: var(--conflict); }
+.q-terms { margin-top: 6px; display: flex; flex-direction: column; gap: 3px; font-size: 12px; }
+.tag.q.old { background: #fdf0d5; color: #8a5a00; }
+.tag.q.none { background: transparent; color: var(--muted); font-weight: 500; padding-left: 0; }
+.q-note { margin-top: 6px; font-size: 12px; color: var(--muted); }
+.q-terms .unused { opacity: .55; }
+
+/* Q numbers on search results */
+.qbox {
+  grid-column: 2; grid-row: 1 / span 3; align-self: center; display: grid; grid-template-columns: auto auto;
+  gap: 2px 12px; padding: 6px 10px; border-radius: 8px; background: var(--panel-2); border: 1px solid var(--border);
+  text-align: center;
+}
+.result:hover .qbox, .result.added .qbox { background: var(--panel); }
+.qstat b { display: block; font-size: 17px; line-height: 1.1; font-variant-numeric: tabular-nums; letter-spacing: -.01em; }
+.qstat span { display: block; font-size: 10px; color: var(--muted); white-space: nowrap; }
+.qstat.good b, .qbig.good b { color: #15803d; }
+.qstat.low b, .qbig.low b { color: var(--conflict); }
+.qold { grid-column: 1 / -1; font-size: 10px; font-weight: 600; color: #8a5a00; background: #fdf0d5; border-radius: 4px; padding: 1px 4px; }
+.qbox.none { display: block; background: none; border: 0; padding: 0; font-size: 11px; color: var(--muted); white-space: nowrap; }
+
+/* Q card in the details panel */
+.qpanel { border: 1px solid var(--border); background: var(--panel-2); border-radius: 12px; padding: 14px 16px; margin: 4px 0 16px; }
+.qpanel.none { color: var(--muted); font-size: 13px; }
+.qpanel-head { font-size: 11px; font-weight: 700; letter-spacing: .06em; text-transform: uppercase; color: var(--muted); margin-bottom: 8px; }
+.qbigs { display: grid; grid-template-columns: repeat(3, 1fr); gap: 8px; }
+.qbig { background: var(--panel); border: 1px solid var(--border); border-radius: 10px; padding: 10px 8px; text-align: center; }
+.qbig b { display: block; font-size: 28px; line-height: 1.1; font-variant-numeric: tabular-nums; letter-spacing: -.02em; }
+.qbig span { display: block; font-size: 12px; font-weight: 600; }
+.qbig small { display: block; font-size: 11px; color: var(--muted); }
+.q-note.warn { color: #8a5a00; background: #fdf0d5; border-radius: 6px; padding: 6px 8px; }
+.qpanel .q-terms a { color: var(--crimson); font-weight: 600; text-decoration: none; }

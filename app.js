@@ -28,6 +28,8 @@
 
   let ALL = [];          // all courses
   let BY_KEY = new Map();
+  let HAS_Q = false;     // true when a local data/q.json was loaded
+  let Q = {};            // courseId -> { hours, recommend, overall, terms: [...] } from data/q.json, if present
   let results = [];
   let shown = PAGE;
   let hoverKey = null;
@@ -42,8 +44,8 @@
     hideTba: saved.hideTba ?? true,
     fits: saved.fits ?? false,
     previewAll: saved.previewAll ?? true,
-    dept: "",
-    gened: "",
+    depts: new Set(),   // selected departments (any of)
+    geneds: new Set(),  // selected Gen Ed / divisional requirements (any of)
     // drafts: [{ id, name, schedule }], where schedule is key -> { color, picks: {component: optionId}, options: [...] }
     // (schedules saved before drafts existed become "Schedule 1")
     drafts: saved.drafts?.length ? saved.drafts : [{ id: "d-" + Math.random().toString(36).slice(2, 9), name: "Schedule 1", schedule: saved.schedule || {} }],
@@ -59,7 +61,7 @@
   }
   function persist() {
     try {
-      localStorage.setItem(STORE, JSON.stringify({ ...state, days: [...state.days], dept: undefined, gened: undefined, schedule: undefined }));
+      localStorage.setItem(STORE, JSON.stringify({ ...state, days: [...state.days], depts: undefined, geneds: undefined, schedule: undefined }));
     } catch { /* storage unavailable */ }
   }
 
@@ -219,8 +221,8 @@
     const out = [];
     for (const c of ALL) {
       if (state.term && c.term !== state.term) continue;
-      if (state.dept && c.department !== state.dept) continue;
-      if (state.gened && c.genEd !== state.gened && c.divisional !== state.gened) continue;
+      if (state.depts.size && !state.depts.has(c.department)) continue;
+      if (state.geneds.size && ![...state.geneds].some((g) => (c.genEd || "").includes(g) || (c.divisional || "").includes(g))) continue;
       if (state.hideTba && !c._alts.length) continue;
       // a multi-section course passes if any one of its sections passes
       const passes = (tm) =>
@@ -244,6 +246,10 @@
       end: (a, b) => nullLast(a._end) - nullLast(b._end) || byCode(a, b),
       code: byCode,
       title: (a, b) => a.title.localeCompare(b.title),
+      // courses without Q data go last
+      "q-hours": (a, b) => nullLast(a.q?.hours) - nullLast(b.q?.hours) || byCode(a, b),
+      "q-hours-desc": (a, b) => nullLast(b.q?.hours, true) - nullLast(a.q?.hours, true) || byCode(a, b),
+      "q-rec": (a, b) => nullLast(b.q?.recommend, true) - nullLast(a.q?.recommend, true) || byCode(a, b),
     };
     const sortKey = !q && state.sort === "relevance" ? "code" : state.sort;
     out.sort(sorters[sortKey]);
@@ -262,6 +268,69 @@
     }
     return c.needsSections || c.sections?.length ? '<span class="tag sec" title="Requires a section; times not posted yet">section TBA</span>' : "";
   }
+  /** When a term's evaluations were collected, as a comparable number of months ("2024 Fall" → Dec 2024). */
+  function termEndMonths(term) {
+    const m = /(\d{4})\s+(\w+)/.exec(term || "");
+    if (!m) return 0;
+    const month = { spring: 5, summer: 8, fall: 12, winter: 1, january: 1 }[m[2].toLowerCase()] || 6;
+    return +m[1] * 12 + month;
+  }
+
+  /**
+   * Summarize a course's Q reports. Reports from the last 2 years are used on their own when there are any;
+   * otherwise older reports are used and the summary is marked `old`. Averages are weighted by response count.
+   */
+  function summarizeQ(raw) {
+    const all = (raw?.terms || []).filter((t) => t.hours != null || t.recommend != null || t.overall != null);
+    if (!all.length) return null;
+    const now = new Date();
+    const cutoff = (now.getFullYear() - 2) * 12 + now.getMonth() + 1;
+    const recent = all.filter((t) => termEndMonths(t.term) >= cutoff);
+    const used = recent.length ? recent : all;
+    const wavg = (key, wkey) => {
+      const pairs = used.filter((t) => t[key] != null).map((t) => [t[key], t[wkey] || t.responded || 1]);
+      const tot = pairs.reduce((a, [, w]) => a + w, 0);
+      return tot ? pairs.reduce((a, [v, w]) => a + v * w, 0) / tot : null;
+    };
+    return {
+      hours: wavg("hours", "hoursN"), recommend: wavg("recommend", "recommendN"), overall: wavg("overall", "overallN"),
+      terms: used, allTerms: all, old: !recent.length,
+    };
+  }
+
+  /** Q summary chips: "5.5 hrs/wk", "4.1/5 rec", plus a note when the data is old or missing. */
+  function qChips(c) {
+    const q = c.q;
+    if (!q) return HAS_Q ? '<span class="tag q none" title="No Q report data was found for this course">no Q data</span>' : "";
+    const n = q.terms.length, list = q.terms.map((t) => t.term).join(", ");
+    const tip = `Q Reports, average of ${n} offering${n > 1 ? "s" : ""} (${list})`;
+    return (q.hours != null ? `<span class="tag q" title="${esc(tip)}: hours per week outside class">${q.hours.toFixed(1)} hrs/wk</span>` : "")
+      + (q.recommend != null ? `<span class="tag q ${q.recommend >= 4.3 ? "good" : q.recommend < 3.5 ? "low" : ""}" title="${esc(tip)}: how strongly students recommend it (1–5)">${q.recommend.toFixed(1)}/5 rec</span>` : "")
+      + (q.old ? `<span class="tag q old" title="No Q reports from the last 2 years. These numbers come from ${esc(list)}.">older data: ${esc(q.terms[0].term)}</span>` : "");
+  }
+
+  const recClass = (v) => (v >= 4.3 ? "good" : v < 3.5 ? "low" : "");
+
+  /** Q card for the details panel: three headline numbers, what they're based on, and each report. */
+  function qPanel(c) {
+    const q = c.q;
+    if (!q) return HAS_Q ? '<div class="qpanel none">No Q report data for this course.</div>' : "";
+    const stat = (v, label, sub, cls = "") => `<div class="qbig ${cls}"><b>${v != null ? v.toFixed(1) : "–"}</b><span>${label}</span><small>${sub}</small></div>`;
+    const basis = q.old
+      ? `<div class="q-note warn">No Q reports from the last 2 years. These numbers are based on older reports (${esc(q.terms.map((t) => t.term).join(", "))}).</div>`
+      : `<div class="q-note">Average of ${q.terms.length} offering${q.terms.length > 1 ? "s" : ""} from the last 2 years, weighted by number of responses.${q.allTerms.length > q.terms.length ? " Older reports are listed but not counted." : ""}</div>`;
+    return `<div class="qpanel">
+      <div class="qpanel-head">Q Reports</div>
+      <div class="qbigs">
+        ${stat(q.hours, "hrs / week", "outside class")}
+        ${stat(q.recommend, "recommend", "out of 5", q.recommend != null ? recClass(q.recommend) : "")}
+        ${stat(q.overall, "overall", "out of 5", q.overall != null ? recClass(q.overall) : "")}
+      </div>
+      ${basis}
+      <div class="q-terms">${q.allTerms.map((t) => `<div${q.terms.includes(t) ? "" : ' class="unused"'}>${linkA({ url: t.url }, t.term)} <span class="muted">${esc((t.instructors || []).join(", "))}</span>: ${t.hours != null ? `${t.hours.toFixed(1)} hrs/wk` : "no hours"} · ${t.recommend != null ? `${t.recommend.toFixed(2)} rec` : "no rec"} · ${t.overall != null ? `${t.overall.toFixed(2)} overall` : "no overall"}${t.responded ? ` <span class="muted">(${t.responded} of ${t.invited} responded)</span>` : ""}</div>`).join("")}</div>
+    </div>`;
+  }
+
   function renderResults() {
     const list = $("#results");
     const blocks = scheduledBlocks();
@@ -278,7 +347,7 @@
         ${added ? `<span class="swatch" style="background:${entry.color}"></span>` : ""}
         <div class="code">${esc(c.code)} ${secTag(c)} ${conflict ? '<span class="tag warn">conflict</span>' : ""}</div>
         <div class="title">${esc(c.title)}</div>
-        <div class="meta"><span class="when">${esc(when)}</span>${c.instructors?.length ? `<span>${esc(c.instructors.join(", "))}</span>` : ""}${c.genEd ? `<span>${esc(c.genEd)}</span>` : ""}</div>
+        <div class="meta"><span class="when">${esc(when)}</span>${c.instructors?.length ? `<span>${esc(c.instructors.join(", "))}</span>` : ""}${c.genEd ? `<span>${esc(c.genEd)}</span>` : ""}${qChips(c)}</div>
         <button class="add" title="${added ? "Remove from" : "Add to"} schedule" aria-label="${added ? "Remove" : "Add"} ${esc(c.code)}">${added ? "✓" : "+"}</button>
       </li>`;
     }).join("");
@@ -409,8 +478,12 @@
       for (const m of (c.meetings || []).filter(timed)) mins += (m.end - m.start) * m.days.length;
       for (const sec of pickedSections(c, e)) for (const m of sec.meetings.filter(timed)) mins += (m.end - m.start) * m.days.length;
     }
+    const qHours = entries.map(([, , c]) => c.q?.hours).filter((h) => h != null);
+    const workload = qHours.length
+      ? ` · ~${qHours.reduce((a, b) => a + b, 0).toFixed(0)} hrs/week of coursework${qHours.length < entries.length ? ` (Q data for ${qHours.length} of ${entries.length})` : ""}`
+      : "";
     $("#schedSummary").textContent = entries.length
-      ? `${entries.length} course${entries.length > 1 ? "s" : ""}${credits ? ` · ${credits} credits` : ""} · ${(mins / 60).toFixed(1)} hrs/week in class`
+      ? `${entries.length} course${entries.length > 1 ? "s" : ""}${credits ? ` · ${credits} credits` : ""} · ${(mins / 60).toFixed(1)} hrs/week in class${workload}`
       : "";
     if (!entries.length) {
       list.innerHTML = `<li class="empty">Search on the left and click <b>+</b> to add courses. Hover a result to preview it on the calendar.</li>`;
@@ -446,7 +519,7 @@
         <div class="lines">
           ${c.classSections?.length && !(c.meetings || []).some(timed) ? "" : `<div class="line">${esc(c.component || "Lecture")}: ${esc((c.meetings || []).map(meetingStr).join(" · ") || "TBA")}</div>`}
           ${groupHtml || (c.needsSections ? '<div class="line"><i>Requires a section. Add the options with + Add section option.</i></div>' : "")}
-          ${(() => { const ls = courseLinks(c, e).filter((l) => l.label !== "The Coop"); return ls.length ? `<div class="line quick-links">${ls.map((l) => linkA(l, l.label.replace(" Site", "").replace(" Report", " Guide"))).join("")}</div>` : ""; })()}
+          ${(() => { const ls = courseLinks(c, e).filter((l) => l.label !== "The Coop"); return ls.length || c.q ? `<div class="line quick-links">${ls.map((l) => linkA(l, l.label.replace(" Site", "").replace(" Report", " Guide"))).join("")}${qChips(c)}</div>` : ""; })()}
           <div class="form-slot"></div>
         </div>
       </li>`;
@@ -556,6 +629,7 @@
         ${c.url ? linkA({ url: c.url }, "my.harvard") : ""}
         ${courseLinks(c, state.schedule[k]).map((l) => linkA(l)).join("")}
       </div>
+      ${qPanel(c)}
       <dl>
         ${row("Term", `${c.term} · ${c.session || ""}`)}
         ${row("Meets", (c.meetings || []).map(meetingStr).join(" · ") || "TBA")}
@@ -821,8 +895,12 @@
     $("#sort").addEventListener("change", (e) => { state.sort = e.target.value; persist(); runSearch(); });
     $("#after").addEventListener("change", (e) => { state.after = e.target.value; persist(); runSearch(); });
     $("#before").addEventListener("change", (e) => { state.before = e.target.value; persist(); runSearch(); });
-    $("#dept").addEventListener("change", (e) => { state.dept = e.target.value; runSearch(); });
-    $("#gened").addEventListener("change", (e) => { state.gened = e.target.value; runSearch(); });
+    // multi-select popovers close on outside click or Esc
+    const closeMulti = (except) => $$(".ms-pop").forEach((p) => {
+      if (p.parentElement !== except) { p.hidden = true; $(".ms-btn", p.parentElement).setAttribute("aria-expanded", "false"); }
+    });
+    document.addEventListener("click", (e) => closeMulti(e.target.closest(".ms")));
+    document.addEventListener("keydown", (e) => { if (e.key === "Escape") closeMulti(null); });
     for (const id of ["hideTba", "fits", "previewAll"]) {
       $("#" + id).addEventListener("change", (e) => { state[id] = e.target.checked; persist(); runSearch(); });
     }
@@ -905,12 +983,65 @@
 
   function fillFacetSelects() {
     const inTerm = ALL.filter((c) => !state.term || c.term === state.term);
+    state.depts.clear();
+    state.geneds.clear();
     const depts = [...new Set(inTerm.map((c) => c.department).filter(Boolean))].sort();
-    $("#dept").innerHTML = `<option value="">All departments</option>` + depts.map((d) => `<option>${esc(d)}</option>`).join("");
-    const gens = [...new Set(inTerm.flatMap((c) => [c.genEd, c.divisional]).filter(Boolean))].sort();
-    $("#gened").innerHTML = `<option value="">Any Gen Ed / divisional</option>` + gens.map((d) => `<option>${esc(d)}</option>`).join("");
-    $("#gened").hidden = !gens.length;
-    state.dept = state.gened = "";
+    setupMulti($("#dept"), depts.map((d) => ({ value: d, label: d })), state.depts);
+    // requirement categories are listed individually; a course tagged with two of them matches either
+    const present = (list, field) => list.filter((v) => inTerm.some((c) => (c[field] || "").includes(v)));
+    const reqs = [
+      ...present(["Aesthetics and Culture", "Ethics and Civics", "Histories, Societies, Individuals", "Science and Technology in Society"], "genEd").map((v) => ({ value: v, label: v, group: "Gen Ed" })),
+      ...present(["Arts and Humanities", "Science & Engineering & Applied Science", "Social Sciences"], "divisional").map((v) => ({ value: v, label: v, group: "Divisional distribution" })),
+    ];
+    setupMulti($("#gened"), reqs, state.geneds);
+    $("#gened").hidden = !reqs.length;
+  }
+
+  /**
+   * Checkbox dropdown. `el` is a .ms container with data-all ("All departments") and data-noun ("departments");
+   * `selected` is a Set that is updated in place. Any of the checked values matches.
+   */
+  function setupMulti(el, options, selected) {
+    const label = () => (selected.size === 0 ? el.dataset.all
+      : selected.size === 1 ? [...selected][0]
+      : `${selected.size} ${el.dataset.noun}`);
+    let lastGroup = null;
+    const rows = options.map((o) => {
+      const head = o.group && o.group !== lastGroup ? `<div class="ms-group">${esc(o.group)}</div>` : "";
+      lastGroup = o.group || null;
+      return `${head}<label class="ms-opt"><input type="checkbox" value="${esc(o.value)}" /><span>${esc(o.label)}</span></label>`;
+    }).join("");
+    el.innerHTML = `
+      <button type="button" class="ms-btn" aria-haspopup="true" aria-expanded="false"><span class="ms-label"></span><span class="ms-caret" aria-hidden="true">▾</span></button>
+      <div class="ms-pop" hidden>
+        ${options.length > 10 ? `<input type="search" class="ms-search" placeholder="Filter ${esc(el.dataset.noun)}…" aria-label="Filter ${esc(el.dataset.noun)}" />` : ""}
+        <div class="ms-list">${rows}</div>
+        <div class="ms-foot"><button type="button" class="link-btn ms-clear">Clear</button><button type="button" class="link-btn ms-done">Done</button></div>
+      </div>`;
+    const btn = $(".ms-btn", el), pop = $(".ms-pop", el);
+    const refresh = () => {
+      $(".ms-label", el).textContent = label();
+      btn.classList.toggle("active", selected.size > 0);
+      $$("input[type=checkbox]", el).forEach((cb) => (cb.checked = selected.has(cb.value)));
+    };
+    const setOpen = (open) => {
+      pop.hidden = !open;
+      btn.setAttribute("aria-expanded", String(open));
+      if (open) $(".ms-search", el)?.focus();
+    };
+    btn.addEventListener("click", () => setOpen(pop.hidden));
+    $(".ms-done", el).addEventListener("click", () => setOpen(false));
+    $(".ms-clear", el).addEventListener("click", () => { selected.clear(); refresh(); runSearch(); });
+    $(".ms-list", el).addEventListener("change", (e) => {
+      if (e.target.checked) selected.add(e.target.value); else selected.delete(e.target.value);
+      refresh();
+      runSearch();
+    });
+    $(".ms-search", el)?.addEventListener("input", (e) => {
+      const f = e.target.value.trim().toLowerCase();
+      $$(".ms-opt", el).forEach((row) => (row.hidden = !!f && !row.textContent.toLowerCase().includes(f)));
+    });
+    refresh();
   }
 
   async function init() {
@@ -930,10 +1061,19 @@
         fetch("data/courses.json").then((r) => r.json()),
         fetch("data/index.json").then((r) => r.json()).catch(() => ({})),
       ]);
+      // Q Report summaries are optional and local-only: data/q.json is never published, so the file is only
+      // requested when the site runs on your own machine. Without it, every Q feature stays switched off.
+      const isLocal = ["localhost", "127.0.0.1", "[::1]", ""].includes(location.hostname);
+      Q = isLocal ? await fetch("data/q.json").then((r) => (r.ok ? r.json() : {})).catch(() => ({})) : {};
     } catch (err) {
       $("#results").innerHTML = `<li class="empty" style="padding:14px">Couldn't load <code>data/courses.json</code>. Run the scraper, then serve this folder with <code>python3 -m http.server</code>.</li>`;
       return;
     }
+    const hasQ = Object.keys(Q).length > 0;
+    HAS_Q = hasQ;
+    ALL.forEach((c) => { c.q = summarizeQ(Q[c.courseId]); });
+    $$(".q-only").forEach((o) => (o.hidden = o.disabled = !hasQ));
+    if (!hasQ && state.sort.startsWith("q-")) state.sort = $("#sort").value = "relevance";
     ALL.forEach(buildIndex);
     BY_KEY = new Map(ALL.map((c) => [keyOf(c), c]));
     // migrate schedules saved before multi-component picks

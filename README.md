@@ -72,6 +72,18 @@ It only makes read-only requests (the same section list the Add to Cart popup lo
 
 **Privacy:** `.harvard-cookie` works like your login. It and `debug/` (raw signed-in pages from `probe_auth.py`) are in `.gitignore`, so they never reach GitHub. The published `data/courses.json` contains only course information: titles, times, instructors, section times, and links. Nothing about your account goes in it.
 
+### Q Reports: workload and recommendation scores (local only)
+
+`scraper/q.py` reads Q Report summaries for each course: average hours per week outside class, how strongly students recommend it (1–5), and the overall rating. It averages the three most recent offerings, weighted by number of responses.
+
+1. Sign in at https://qreports.fas.harvard.edu. Open DevTools → Network, reload, click the `qreports.fas.harvard.edu` request, and copy the **Cookie** request header value.
+2. `pbpaste > .harvard-q-cookie`
+3. `python3 scraper/q.py` (about 15 minutes; reruns only fetch new reports)
+
+The app then shows the numbers on each result and in the details panel, adds "Workload" and "Recommended" sort options, and totals the estimated coursework hours for your schedule.
+
+**Q data is not published.** Q results are restricted to the Harvard community, so `data/q.json` is in `.gitignore` and only appears when you run the site locally. The public site simply shows no Q numbers.
+
 ## Tests
 
 Browser smoke tests use Playwright (`pip install playwright && playwright install chromium`):
@@ -88,7 +100,8 @@ index.html, app.js, styles.css   the site
 data/courses.json, index.json    scraped course data (committed)
 scraper/scrape.py                public course search + course pages
 scraper/sections.py              section times (signed-in)
-scraper/probe_auth.py            debugging helper for the signed-in pages
+scraper/q.py                     Q Report summaries (signed-in, output stays local)
+scraper/probe_auth.py, probe_q.py  debugging helpers for the signed-in pages
 tests/                           Playwright smoke tests
 ```
 

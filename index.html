@@ -6,7 +6,7 @@
   <title>Crimson Atlas</title>
   <link rel="preconnect" href="https://fonts.googleapis.com" />
   <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet" />
-  <link rel="stylesheet" href="styles.css?v=4" />
+  <link rel="stylesheet" href="styles.css?v=8" />
 </head>
 <body>
   <header class="topbar">
@@ -35,6 +35,9 @@
               <option value="end">End time</option>
               <option value="code">Course code</option>
               <option value="title">Title</option>
+              <option value="q-hours" class="q-only" hidden>Workload (lightest first)</option>
+              <option value="q-hours-desc" class="q-only" hidden>Workload (heaviest first)</option>
+              <option value="q-rec" class="q-only" hidden>Recommended (highest first)</option>
             </select>
           </label>
           <label>Starts after <input id="after" type="time" step="900" /></label>
@@ -49,8 +52,8 @@
           <label class="check"><input id="previewAll" type="checkbox" checked /> Preview top results</label>
         </div>
         <div class="row">
-          <select id="dept" aria-label="Department"><option value="">All departments</option></select>
-          <select id="gened" aria-label="Gen Ed / Divisional"><option value="">Any Gen Ed / divisional</option></select>
+          <div class="ms" id="dept" data-all="All departments" data-noun="departments"></div>
+          <div class="ms" id="gened" data-all="Any requirement" data-noun="requirements"></div>
         </div>
       </div>
 
@@ -129,6 +132,6 @@
       <button class="ghost-btn" data-choice="cancel">Cancel</button>
     </div>
   </dialog>
-  <script src="app.js?v=4"></script>
+  <script src="app.js?v=9"></script>
 </body>
 </html>

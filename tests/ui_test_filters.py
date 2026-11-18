@@ -1,0 +1,35 @@
+"""Multi-select department / requirement filters."""
+import sys
+from playwright.sync_api import sync_playwright
+
+errors = []
+with sync_playwright() as p:
+    b = p.chromium.launch()
+    pg = b.new_page(viewport={"width": 1440, "height": 1000})
+    pg.on("pageerror", lambda e: errors.append(str(e)))
+    pg.goto("http://localhost:8765/"); pg.evaluate("localStorage.clear()"); pg.reload()
+    pg.wait_for_selector(".result")
+    n = lambda: int(pg.inner_text("#resultMeta").split()[0].replace(",", ""))
+    total = n()
+    pg.click("#dept .ms-btn")
+    pg.fill("#dept .ms-search", "econ"); pg.wait_for_timeout(100)
+    print("filtered options:", pg.locator("#dept .ms-opt:not([hidden])").all_inner_texts())
+    pg.check("#dept input[value='Economics']"); pg.wait_for_timeout(300); econ = n()
+    pg.fill("#dept .ms-search", "")
+    pg.check("#dept input[value='Statistics']"); pg.wait_for_timeout(300); both = n()
+    print(f"all {total} | Economics {econ} | Economics + Statistics {both} | button: {pg.inner_text('#dept .ms-label')}")
+    depts = set(pg.evaluate("[...document.querySelectorAll('.result .code')].map(e => e.textContent.trim().split(' ')[0])"))
+    print("subjects shown:", sorted(depts))
+    pg.keyboard.press("Escape"); pg.wait_for_timeout(100)
+    print("popover closed on Esc:", pg.locator("#dept .ms-pop").is_hidden())
+    pg.click("#dept .ms-btn"); pg.click("#dept .ms-clear"); pg.click("#dept .ms-done"); pg.wait_for_timeout(300)
+    print("after Clear:", n(), "| button:", pg.inner_text("#dept .ms-label"))
+    pg.click("#gened .ms-btn")
+    print("requirement groups:", pg.locator("#gened .ms-group").all_inner_texts(), "| options:", pg.locator("#gened .ms-opt").count())
+    pg.check("#gened input[value='Ethics and Civics']"); pg.wait_for_timeout(300); ec = n()
+    pg.check("#gened input[value='Aesthetics and Culture']"); pg.wait_for_timeout(300)
+    print(f"Ethics and Civics {ec} | + Aesthetics and Culture {n()} | button: {pg.inner_text('#gened .ms-label')}")
+    print("large Q boxes in results:", pg.locator(".qbox").count())
+    pg.screenshot(path=sys.argv[1] if len(sys.argv) > 1 else "filters.png")
+    b.close()
+print("ERRORS:", errors or "none")
