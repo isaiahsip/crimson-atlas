@@ -12,6 +12,7 @@
   const PREVIEW_N = 12;     // ghost-preview this many top results
   const PX_PER_MIN = 0.9;   // calendar vertical scale
   const STORE = "crimson-atlas-v1";
+  const QRD = "Quantitative Reasoning with Data";
 
   // Common short names → my.harvard subject codes
   const ALIASES = {
@@ -222,7 +223,7 @@
     for (const c of ALL) {
       if (state.term && c.term !== state.term) continue;
       if (state.depts.size && !state.depts.has(c.department)) continue;
-      if (state.geneds.size && ![...state.geneds].some((g) => (c.genEd || "").includes(g) || (c.divisional || "").includes(g))) continue;
+      if (state.geneds.size && ![...state.geneds].some((g) => (g === QRD ? c.qrd : (c.genEd || "").includes(g) || (c.divisional || "").includes(g)))) continue;
       if (state.hideTba && !c._alts.length) continue;
       // a multi-section course passes if any one of its sections passes
       const passes = (tm) =>
@@ -347,7 +348,7 @@
         ${added ? `<span class="swatch" style="background:${entry.color}"></span>` : ""}
         <div class="code">${esc(c.code)} ${secTag(c)} ${conflict ? '<span class="tag warn">conflict</span>' : ""}</div>
         <div class="title">${esc(c.title)}</div>
-        <div class="meta"><span class="when">${esc(when)}</span>${c.instructors?.length ? `<span>${esc(c.instructors.join(", "))}</span>` : ""}${c.genEd ? `<span>${esc(c.genEd)}</span>` : ""}${qChips(c)}</div>
+        <div class="meta"><span class="when">${esc(when)}</span>${c.instructors?.length ? `<span>${esc(c.instructors.join(", "))}</span>` : ""}${c.genEd ? `<span>${esc(c.genEd)}</span>` : ""}${c.qrd ? `<span class="tag" title="Satisfies ${QRD}">QRD</span>` : ""}${qChips(c)}</div>
         <button class="add" title="${added ? "Remove from" : "Add to"} schedule" aria-label="${added ? "Remove" : "Add"} ${esc(c.code)}">${added ? "✓" : "+"}</button>
       </li>`;
     }).join("");
@@ -638,7 +639,8 @@
         ${row("Component", c.component)}
         ${row("Credits", c.credits)}
         ${row("Gen Ed", c.genEd)}
-        ${row("Divisional", c.divisional)}
+        ${row("Divisional", c.divisional === "None" ? "" : c.divisional)}
+        ${c.qrd ? row("QRD", `Satisfies ${QRD}`) : ""}
         ${row("Consent", c.consent)}
         ${row("Class #", c.classNumber)}
         ${[...sectionGroups(c, state.schedule[k]).entries()].map(([comp, opts]) => {
@@ -992,6 +994,7 @@
     const reqs = [
       ...present(["Aesthetics and Culture", "Ethics and Civics", "Histories, Societies, Individuals", "Science and Technology in Society"], "genEd").map((v) => ({ value: v, label: v, group: "Gen Ed" })),
       ...present(["Arts and Humanities", "Science & Engineering & Applied Science", "Social Sciences"], "divisional").map((v) => ({ value: v, label: v, group: "Divisional distribution" })),
+      ...(inTerm.some((c) => c.qrd) ? [{ value: QRD, label: QRD, group: "College requirements" }] : []),
     ];
     setupMulti($("#gened"), reqs, state.geneds);
     $("#gened").hidden = !reqs.length;

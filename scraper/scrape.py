@@ -235,11 +235,34 @@ def parse_detail(page):
 
 # ---------------------------------------------------------------- scraping
 
-def search_page(term, school, page, query=""):
-    params = {"q": query, "school": school, "term": term, "sort": "subject_catalog", "page": page}
+def search_page(term, school, page, query="", **facets):
+    params = {"q": query, "school": school, "term": term, "sort": "subject_catalog", "page": page, **facets}
     url = f"{BASE}/search/?{urllib.parse.urlencode(params)}"
     raw = get(url, accept="application/json")
     return json.loads(raw)
+
+
+def add_qrd(courses, term, school, delay):
+    """Flag courses that satisfy Quantitative Reasoning with Data, using my.harvard's QRD search filter."""
+    ids = set()
+    page = 1
+    while True:
+        data = search_page(term, school, page, QRD="Yes")
+        cards = data["hits"].split("<!-- Course Card -->")[1:]
+        for card in cards:
+            m = re.search(r'data-course-id="(\d+)"\s+data-crse-offer-nbr="(\d+)"', card)
+            if m:
+                ids.add(m.groups())
+        if not cards or len(ids) >= int(data["total_hits"]):
+            break
+        page += 1
+        time.sleep(delay)
+    for c in courses:
+        if (c["courseId"], c["offerNbr"]) in ids:
+            c["qrd"] = True
+        else:
+            c.pop("qrd", None)
+    print(f"QRD: {len(ids)} courses")
 
 
 def scrape_search(term, school, delay, workers):
@@ -390,6 +413,7 @@ def main():
         if old:
             for k, v in old.items():
                 c.setdefault(k, v)
+    add_qrd(courses, args.term, args.school, args.delay)
     add_class_sections(courses, args.delay, args.workers)
     if args.details:
         add_details(courses, args.delay, args.workers)
