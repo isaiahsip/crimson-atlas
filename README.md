@@ -18,7 +18,7 @@ Inspired by [Atlas](https://atlas.ai.umich.edu), which is copyrighted and the pr
 - Hand-entered section options for sections my.harvard hasn't posted yet
 - Course links like on my.harvard: Syllabus, Canvas Site, Q Report, The Coop
 - `.ics` export for Google Calendar / Apple Calendar
-- Multiple draft schedules (new, duplicate, rename, delete, switch) and per-course custom colors
+- Multiple draft schedules (new, duplicate, rename, delete, switch)
 - Export a draft to a `.json` file or copy a share link; importing asks whether to add a new draft or replace the current one
 
 ## Run locally

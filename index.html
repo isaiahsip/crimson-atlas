@@ -6,7 +6,7 @@
   <title>Crimson Atlas</title>
   <link rel="preconnect" href="https://fonts.googleapis.com" />
   <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet" />
-  <link rel="stylesheet" href="styles.css" />
+  <link rel="stylesheet" href="styles.css?v=4" />
 </head>
 <body>
   <header class="topbar">
@@ -61,16 +61,20 @@
     <!-- RIGHT: calendar + schedule -->
     <section class="right">
       <div class="drafts-bar">
-        <label for="draftSel" class="muted">Draft</label>
         <select id="draftSel" aria-label="Draft schedule"></select>
-        <button id="draftNew" class="ghost-btn" title="New empty draft">＋ New</button>
-        <button id="draftDup" class="ghost-btn" title="Duplicate this draft">Duplicate</button>
-        <button id="draftRename" class="ghost-btn" title="Rename this draft">Rename</button>
-        <button id="draftDelete" class="ghost-btn" title="Delete this draft">Delete</button>
-        <div class="spacer"></div>
-        <button id="importBtn" class="ghost-btn" title="Import a schedule file">Import</button>
-        <button id="exportBtn" class="ghost-btn" title="Save this draft as a file">Export</button>
-        <button id="shareBtn" class="ghost-btn" title="Copy a link that opens this draft">Copy link</button>
+        <div class="menu-wrap">
+          <button id="draftMenuBtn" class="ghost-btn icon-btn" aria-haspopup="menu" aria-expanded="false" aria-controls="draftMenu" title="Draft options">⋯</button>
+          <div id="draftMenu" class="menu" role="menu" hidden>
+            <button role="menuitem" id="draftNew">New draft</button>
+            <button role="menuitem" id="draftDup">Duplicate</button>
+            <button role="menuitem" id="draftRename">Rename…</button>
+            <button role="menuitem" id="draftDelete" class="danger">Delete</button>
+            <hr />
+            <button role="menuitem" id="importBtn">Import from file…</button>
+            <button role="menuitem" id="exportBtn">Export to file</button>
+            <button role="menuitem" id="shareBtn">Copy share link</button>
+          </div>
+        </div>
         <input id="importFile" type="file" accept=".json,application/json" hidden />
       </div>
       <div class="cal-wrap">
@@ -125,6 +129,6 @@
       <button class="ghost-btn" data-choice="cancel">Cancel</button>
     </div>
   </dialog>
-  <script src="app.js"></script>
+  <script src="app.js?v=4"></script>
 </body>
 </html>

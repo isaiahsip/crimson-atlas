@@ -4,7 +4,7 @@ from playwright.sync_api import sync_playwright
 
 URL = "http://localhost:8765/"
 errors = []
-drafts = lambda pg: pg.locator("#draftSel option").all_inner_texts()
+drafts = lambda pg: [t for t in pg.locator("#draftSel option").all_inner_texts() if "course" in t]
 
 with sync_playwright() as p:
     b = p.chromium.launch()
@@ -22,6 +22,7 @@ with sync_playwright() as p:
     # 2. build it out a bit, then export
     pg.click("[data-pick]:has-text('D002')")
     pg.fill("#q", "chem 20"); pg.wait_for_timeout(300); pg.locator(".result").first.locator(".add").click(); pg.fill("#q", "")
+    pg.click("#draftMenuBtn")
     with pg.expect_download() as dl:
         pg.click("#exportBtn")
     path = os.path.join(tempfile.mkdtemp(), dl.value.suggested_filename); dl.value.save_as(path)
@@ -29,7 +30,7 @@ with sync_playwright() as p:
     print("2 exported:", dl.value.suggested_filename, "|", [(c["code"], c["color"], c["picks"]) for c in data["courses"]])
 
     # 3. new empty draft, import -> dialog -> Replace fills the current draft
-    pg.click("#draftNew"); pg.wait_for_timeout(100)
+    pg.click("#draftMenuBtn"); pg.click("#draftNew"); pg.wait_for_timeout(100)
     print("3 after New:", drafts(pg), "| blocks:", pg.locator(".ev.lecture").count())
     pg.set_input_files("#importFile", path); pg.wait_for_selector("#importDialog[open]")
     print("  dialog:", pg.inner_text("#importMsg"))
@@ -47,17 +48,17 @@ with sync_playwright() as p:
     # 5. switching drafts swaps the calendar; duplicate / rename / delete
     pg.select_option("#draftSel", index=0); pg.wait_for_timeout(100)
     print("5 switched to", pg.inner_text("#schedTitle"), "| courses:", pg.locator(".sched-item").count())
-    pg.click("#draftDup"); pg.wait_for_timeout(100)
+    pg.click("#draftMenuBtn"); pg.click("#draftDup"); pg.wait_for_timeout(100)
     pg.once("dialog", lambda d: d.accept("Plan B"))
-    pg.click("#draftRename"); pg.wait_for_timeout(100)
+    pg.click("#draftMenuBtn"); pg.click("#draftRename"); pg.wait_for_timeout(100)
     print("  dup+rename:", drafts(pg))
     pg.once("dialog", lambda d: d.accept())
-    pg.click("#draftDelete"); pg.wait_for_timeout(100)
+    pg.click("#draftMenuBtn"); pg.click("#draftDelete"); pg.wait_for_timeout(100)
     print("  after delete:", drafts(pg))
 
     # 6. share link -> fresh browser imports it into its empty default draft
     pg.select_option("#draftSel", index=0); pg.wait_for_timeout(100)
-    pg.click("#shareBtn"); pg.wait_for_timeout(200)
+    pg.click("#draftMenuBtn"); pg.click("#shareBtn"); pg.wait_for_timeout(200)
     link = pg.evaluate("navigator.clipboard.readText()")
     print("6 link length:", len(link))
     ctx2 = b.new_context(viewport={"width": 1440, "height": 1000}); pg2 = ctx2.new_page()
@@ -69,6 +70,8 @@ with sync_playwright() as p:
     # 7. everything persists
     pg.reload(); pg.wait_for_selector("#draftSel option", state="attached")
     print("7 after reload:", drafts(pg))
+    pg.select_option("#draftSel", "__new"); pg.wait_for_timeout(100)
+    print("8 '+ New draft' option:", drafts(pg)[-1], "| active:", pg.inner_text("#schedTitle"))
     pg.screenshot(path=sys.argv[1] if len(sys.argv) > 1 else "drafts.png")
     b.close()
 print("ERRORS:", errors or "none")

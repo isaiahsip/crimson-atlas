@@ -439,7 +439,7 @@
         return `<div class="line">${esc(comp)}: ${status}</div>${shownOpts.length ? `<div class="section-picker">${shownOpts.map(optBtn).join("")}</div>` : ""}`;
       }).join("");
       return `<li class="sched-item" data-k="${esc(k)}" style="--c:${e.color};--on:${textOn(e.color)}">
-        <div class="top"><label class="color-pick" title="Change color" style="background:${e.color}"><input type="color" data-color value="${esc(e.color)}" aria-label="Color for ${esc(c.code)}" /></label><b>${esc(c.code)}</b><span>${esc(c.title)}</span><span class="spacer"></span>
+        <div class="top"><b>${esc(c.code)}</b><span>${esc(c.title)}</span><span class="spacer"></span>
           <button class="link-btn" data-addopt>${openFormKey === k ? "Done adding" : "+ Add section option"}</button>
           <button class="link-btn" data-info>Details</button>
           <button class="x-btn" data-remove title="Remove course" aria-label="Remove ${esc(c.code)}">✕</button></div>
@@ -628,7 +628,8 @@
 
   function renderDrafts() {
     $("#draftSel").innerHTML = state.drafts
-      .map((d) => `<option value="${esc(d.id)}">${esc(d.name)} (${draftCount(d)} course${draftCount(d) === 1 ? "" : "s"})</option>`).join("");
+      .map((d) => `<option value="${esc(d.id)}">${esc(d.name)} · ${draftCount(d)} course${draftCount(d) === 1 ? "" : "s"}</option>`).join("")
+      + `<option disabled>──────────</option><option value="__new">＋ New draft</option>`;
     $("#draftSel").value = state.activeDraft;
     $("#schedTitle").textContent = activeDraft().name;
   }
@@ -755,7 +756,17 @@
   }
 
   function wireDrafts() {
-    $("#draftSel").addEventListener("change", (e) => switchDraft(e.target.value));
+    $("#draftSel").addEventListener("change", (e) => {
+      if (e.target.value === "__new") addDraft(nextDefaultName());
+      else switchDraft(e.target.value);
+    });
+    // "⋯" menu: open/close; any item click closes it
+    const menu = $("#draftMenu"), menuBtn = $("#draftMenuBtn");
+    const setMenu = (open) => { menu.hidden = !open; menuBtn.setAttribute("aria-expanded", String(open)); };
+    menuBtn.addEventListener("click", (e) => { e.stopPropagation(); setMenu(menu.hidden); });
+    menu.addEventListener("click", () => setMenu(false));
+    document.addEventListener("click", (e) => { if (!e.target.closest(".menu-wrap")) setMenu(false); });
+    document.addEventListener("keydown", (e) => { if (e.key === "Escape") setMenu(false); });
     $("#draftNew").addEventListener("click", () => addDraft(nextDefaultName()));
     $("#draftDup").addEventListener("click", () => {
       const d = activeDraft();
@@ -860,24 +871,6 @@
         for (const [comp, pid] of Object.entries(entry.picks || {})) if (pid === id) delete entry.picks[comp];
         persist(); renderCalendar(); renderResults();
       }
-    });
-
-    // color picker: update the calendar live while dragging (without rebuilding the open picker), save on close
-    $("#schedList").addEventListener("input", (e) => {
-      const inp = e.target.closest("[data-color]");
-      if (!inp) return;
-      const li = inp.closest(".sched-item");
-      state.schedule[li.dataset.k].color = inp.value;
-      li.style.setProperty("--c", inp.value);
-      li.style.setProperty("--on", textOn(inp.value));
-      inp.parentElement.style.background = inp.value;
-      renderCalendar({ skipSchedule: true });
-    });
-    $("#schedList").addEventListener("change", (e) => {
-      if (!e.target.closest("[data-color]")) return;
-      persist();
-      renderResults();
-      renderCalendar();
     });
 
     $("#clearSched").addEventListener("click", () => {
