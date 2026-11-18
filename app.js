@@ -616,9 +616,12 @@
     renderResults();
   }
 
+  let drawerKey = null; // course currently shown in the details panel
+
   function openDrawer(k) {
     const c = BY_KEY.get(k);
     if (!c) return;
+    drawerKey = k;
     const added = !!state.schedule[k];
     const row = (label, v) => (v ? `<dt>${label}</dt><dd>${esc(v)}</dd>` : "");
     $("#drawerBody").innerHTML = `
@@ -652,7 +655,9 @@
     $("#drawer").classList.add("open");
     $("#drawer").setAttribute("aria-hidden", "false");
   }
-  const closeDrawer = () => { $("#drawer").classList.remove("open"); $("#drawer").setAttribute("aria-hidden", "true"); };
+  const closeDrawer = () => { drawerKey = null; $("#drawer").classList.remove("open"); $("#drawer").setAttribute("aria-hidden", "true"); };
+  /** Clicking the course that's already open closes the panel; clicking another one switches to it. */
+  const toggleDrawer = (k) => (drawerKey === k ? closeDrawer() : openDrawer(k));
 
   function exportIcs() {
     const entries = Object.entries(state.schedule).map(([k, e]) => [e, BY_KEY.get(k)]).filter(([, c]) => c && (!state.term || c.term === state.term));
@@ -918,7 +923,7 @@
       const li = e.target.closest(".result");
       if (!li) return;
       if (e.target.closest(".add")) toggleCourse(li.dataset.k);
-      else openDrawer(li.dataset.k);
+      else toggleDrawer(li.dataset.k);
     });
     results.addEventListener("keydown", (e) => {
       const li = e.target.closest(".result");
